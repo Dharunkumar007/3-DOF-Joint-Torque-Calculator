@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-DOF Robotic Arm Torque Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1.5rem; margin-bottom: 1rem; }
+        .input-group label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+        .input-group input { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem; }
+        .math-block { background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 1.25rem; margin-bottom: 1.5rem; border-radius: 0 4px 4px 0; }
+        
+        /* Updated Styling for Math Steps */
+        .formula { font-family: 'Courier New', Courier, monospace; color: #1d4ed8; font-weight: 600; font-size: 0.95rem; }
+        .calc-step { color: #000000; margin-left: 1rem; font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; font-weight: 500; margin-top: 0.35rem; }
+        .calc-result { color: #000000; font-weight: bold; font-size: 0.95rem; margin-left: 1rem; margin-top: 0.35rem; }
+    </style>
+</head>
+<body class="p-6">
+
+<div class="max-w-[1400px] mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">3-DOF Joint Torque Calculator</h1>
+        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow transition">
+            Export to Excel (CSV)
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <div class="lg:col-span-4 h-screen overflow-y-auto pr-2 pb-20">
+            <div class="card border-t-4 border-blue-600">
+                <h2 class="text-xl font-bold mb-4">Global Parameters</h2>
+                <div class="grid grid-cols-2 gap-5">
+                    <div class="input-group">
+                        <label>Material Density (kg/m³)</label>
+                        <input type="number" id="density" value="8000" step="any">
+                    </div>
+                    <div class="input-group">
+                        <label>Angular Accel (rad/s²)</label>
+                        <input type="number" id="alpha" value="6.48" step="any">
+                    </div>
+                    <div class="input-group">
+                        <label>Max Payload (kg)</label>
+                        <input type="number" id="payload" value="5" step="any">
+                    </div>
+                    <div class="input-group">
+                        <label>Gripper Weight (kg)</label>
+                        <input type="number" id="gripper" value="2" step="any">
+                    </div>
+                    <div class="input-group">
+                        <label>Safety Margin (kg)</label>
+                        <input type="number" id="payload_sof" value="1" step="any">
+                    </div>
+                    <div class="input-group">
+                        <label>Safety Factor</label>
+                        <input type="number" id="sof" value="2" step="any">
+                    </div>
+                </div>
+            </div>
+
+            <div id="joint-inputs-container"></div>
+            
+            <button onclick="calculate()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded shadow mt-4 text-lg transition">
+                Run Calculation
+            </button>
+        </div>
+
+        <div class="lg:col-span-8 h-screen overflow-y-auto pb-20">
+            <div class="card">
+                <h2 class="text-2xl font-bold mb-4 text-gray-800">Results Dashboard</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse whitespace-nowrap" id="results-table">
+                        <thead>
+                            <tr class="bg-gray-100 text-sm">
+                                <th class="p-2 border-b">Joint</th>
+                                <th class="p-2 border-b">Final Static Torque</th>
+                                <th class="p-2 border-b">Final Dynamic Torque</th>
+                                <th class="p-2 border-b text-red-700">Max Torque (Lifting)</th>
+                                <th class="p-2 border-b text-green-700">Min Torque (Lowering)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body">
+                            <tr><td colspan="5" class="text-center p-4 text-gray-500">Click "Run Calculation" to generate data.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="text-2xl font-bold mb-2">Step-by-Step Mathematical Breakdown</h2>
+                <div id="step-by-step-output" class="mt-4">
+                    <p class="text-gray-500 italic">Calculation logic will appear here...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const G = 9.81; // Gravity m/s^2
+    const NM_TO_KGFCM = 10.1971621;
+    
+    const jointNames = [
+        "Shoulder (Joint 1 / Link 1)", 
+        "Elbow (Joint 2 / Link 2)", 
+        "Wrist (Joint 3 / Link 3)"
+    ];
+
+    // Generate Input Fields for 3 Links
+    const container = document.getElementById('joint-inputs-container');
+    for (let i = 0; i < 3; i++) {
+        container.innerHTML += `
+            <div class="card border-t-4 border-gray-400">
+                <h3 class="font-bold text-lg mb-3 text-gray-800">${jointNames[i]}</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="input-group"><label>Link Length (m)</label><input type="number" id="l${i}" value="0.2" step="any"></div>
+                    <div class="input-group"><label>Outer Dia (mm)</label><input type="number" id="od${i}" value="30" step="any"></div>
+                    <div class="input-group"><label>Inner Dia (mm)</label><input type="number" id="id${i}" value="22" step="any"></div>
+                    <div class="input-group"><label>Mech Components (kg)</label><input type="number" id="mech${i}" value="1.5" step="any"></div>
+                    <div class="input-group"><label>Motor Weight (kg)</label><input type="number" id="motor${i}" value="2.5" step="any"></div>
+                    <div class="input-group"><label>Gearbox Weight (kg)</label><input type="number" id="gear${i}" value="3.2" step="any"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    let globalExportData = [];
+
+    function formatUnit(nm) {
+        return `<span class="font-bold">${nm.toFixed(2)} Nm</span><br><span class="text-xs text-gray-500">${(nm * NM_TO_KGFCM).toFixed(2)} kgf·cm</span>`;
+    }
+
+    function calculate() {
+        let stepsHTML = "";
+        globalExportData = []; 
+
+        // Global Inputs
+        const density = parseFloat(document.getElementById('density').value);
+        const alpha = parseFloat(document.getElementById('alpha').value);
+        const payload = parseFloat(document.getElementById('payload').value);
+        const gripper = parseFloat(document.getElementById('gripper').value);
+        const payloadSof = parseFloat(document.getElementById('payload_sof').value);
+        const sof = parseFloat(document.getElementById('sof').value);
+        
+        const totalPayload = payload + gripper + payloadSof;
+        
+        stepsHTML += `
+            <div class="math-block mb-6 bg-gray-50 border-gray-400">
+                <h3 class="font-bold text-lg mb-2">1. System Initialization</h3>
+                <ul class="list-disc pl-5 space-y-1 text-gray-700">
+                    <li><b>Material Density:</b> ${density} kg/m³</li>
+                    <li><b>Angular Accel (α):</b> ${alpha} rad/s²</li>
+                    <li><b>Total End-Effector Payload:</b> ${payload} kg (Payload) + ${gripper} kg (Gripper) + ${payloadSof} kg (Margin) = <b>${totalPayload} kg</b></li>
+                    <li><b>Torque Safety Factor (SOF):</b> ${sof}x</li>
+                </ul>
+            </div>
+        `;
+
+        let links = [];
+        for (let i = 0; i < 3; i++) {
+            let L = parseFloat(document.getElementById(`l${i}`).value);
+            let OD = parseFloat(document.getElementById(`od${i}`).value) / 1000; 
+            let ID = parseFloat(document.getElementById(`id${i}`).value) / 1000; 
+            
+            let massMotor = parseFloat(document.getElementById(`motor${i}`).value);
+            let massGear = parseFloat(document.getElementById(`gear${i}`).value);
+            let massMech = parseFloat(document.getElementById(`mech${i}`).value);
+            let massHardware = massMotor + massGear + massMech;
+
+            links.push({ name: jointNames[i], L: L, OD: OD, ID: ID, massHardware: massHardware });
+        }
+
+        let results = [];
+        let accMass = totalPayload; 
+        let currentStaticTorque = 0; 
+        let currentInertia = 0; 
+
+        // Loop backwards: Wrist (2) -> Elbow (1) -> Shoulder (0)
+        for (let i = 2; i >= 0; i--) {
+            let link = links[i];
+            let L = link.L;
+            let r_out = link.OD / 2;
+            let r_in = link.ID / 2;
+            
+            stepsHTML += `<div class="math-block">`;
+            stepsHTML += `<h3 class="font-bold text-xl mb-4 text-blue-800">${link.name}</h3>`;
+            
+            // --- A. Volume & Mass Calculation ---
+            let vol = Math.PI * (Math.pow(r_out, 2) - Math.pow(r_in, 2)) * L;
+            let mLink = vol * density;
+            
+            stepsHTML += `
+            <div class="mb-5">
+                <p class="font-semibold text-gray-700 border-b pb-1 mb-2">A. Mass</p>
+                <p class="formula">Volume = π × (r_out² - r_in²) × L</p>
+                <p class="calc-step">V = 3.14159 × (${r_out}² - ${r_in}²) × ${L}</p>
+                <p class="calc-result">V = ${vol.toFixed(6)} m³</p>
+                
+                <p class="formula mt-3">Mass_link = Volume × Density</p>
+                <p class="calc-step">M_link = ${vol.toFixed(6)} × ${density}</p>
+                <p class="calc-result">M_link = ${mLink.toFixed(2)} kg</p>
+                
+                <ul class="list-disc pl-5 mt-3 text-sm text-gray-600">
+                    <li>Hardware Mass at Joint: ${link.massHardware.toFixed(2)} kg</li>
+                    <li>Distal Mass Carried (Further down arm): ${accMass.toFixed(2)} kg</li>
+                </ul>
+            </div>`;
+
+            // --- B. Inertia Calculation ---
+            let iDistal = accMass * Math.pow(L, 2);
+            let iLink = mLink * Math.pow(L/2, 2);
+            let totalInertia = currentInertia + iDistal + iLink;
+
+            stepsHTML += `
+            <div class="mb-5">
+                <p class="font-semibold text-gray-700 border-b pb-1 mb-2">B. Rotational Inertia (I)</p>
+                <p class="formula">I_total = I_prev + (Mass_distal × L²) + (Mass_link × (L/2)²)</p>
+                <p class="calc-step">I_total = ${currentInertia.toFixed(4)} + (${accMass.toFixed(2)} × ${L}²) + (${mLink.toFixed(2)} × ${(L/2).toFixed(2)}²)</p>
+                <p class="calc-result">I_total = ${totalInertia.toFixed(4)} kg·m²</p>
+            </div>`;
+
+            // --- C. Static Torque ---
+            let tDistal = accMass * G * L;
+            let tLink = mLink * G * (L / 2);
+            let baseStatic = currentStaticTorque + tDistal + tLink;
+            let finalStatic = baseStatic * sof;
+            
+            stepsHTML += `
+            <div class="mb-5">
+                <p class="font-semibold text-gray-700 border-b pb-1 mb-2">C. Static Torque</p>
+                <p class="formula">τ_base_static = τ_prev + (Mass_distal × g × L) + (Mass_link × g × L/2)</p>
+                <p class="calc-step">τ_base_static = ${currentStaticTorque.toFixed(2)} + (${accMass.toFixed(2)} × 9.81 × ${L}) + (${mLink.toFixed(2)} × 9.81 × ${(L/2).toFixed(2)})</p>
+                <p class="calc-result mb-4">Base Static = ${baseStatic.toFixed(2)} Nm</p>
+                
+                <p class="formula">Final Static = Base Static × SOF</p>
+                <p class="calc-step">Final Static = ${baseStatic.toFixed(2)} × ${sof}</p>
+                <p class="calc-result">Final Static = ${finalStatic.toFixed(2)} Nm</p>
+            </div>`;
+
+            // --- D. Dynamic Torque & Scenarios ---
+            let baseDynamic = totalInertia * alpha;
+            let finalDynamic = baseDynamic * sof;
+            
+            let maxTorque = finalStatic + finalDynamic;
+            let minTorque = finalStatic - finalDynamic;
+
+            stepsHTML += `
+            <div>
+                <p class="font-semibold text-gray-700 border-b pb-1 mb-2">D. Dynamic Torque</p>
+                <p class="formula">τ_base_dynamic = I_total × α</p>
+                <p class="calc-step">τ_base_dynamic = ${totalInertia.toFixed(4)} × ${alpha}</p>
+                <p class="calc-result mb-4">Base Dynamic = ${baseDynamic.toFixed(2)} Nm</p>
+                
+                <p class="formula">Final Dynamic = Base Dynamic × SOF</p>
+                <p class="calc-step">Final Dynamic = ${baseDynamic.toFixed(2)} × ${sof}</p>
+                <p class="calc-result mb-4">Final Dynamic = ${finalDynamic.toFixed(2)} Nm</p>
+                
+                <ul class="list-disc pl-5 space-y-2 text-gray-800">
+                    <li class="mt-2 text-red-700 font-bold">Max Strain (Lifting): Final Static + Final Dynamic = ${maxTorque.toFixed(2)} Nm</li>
+                    <li class="text-green-700 font-bold">Min Strain (Lowering): Final Static - Final Dynamic = ${minTorque.toFixed(2)} Nm</li>
+                </ul>
+            </div>`;
+            
+            stepsHTML += `</div>`; 
+
+            results.unshift({
+                name: link.name.split(" ")[0], 
+                finalStatic: finalStatic,
+                finalDynamic: finalDynamic,
+                max: maxTorque,
+                min: minTorque
+            });
+
+            globalExportData.unshift({
+                "Joint Name": link.name,
+                "Link Length (m)": L,
+                "Volume (m^3)": vol.toFixed(6),
+                "Link Mass (kg)": mLink.toFixed(3),
+                "Hardware Mass (kg)": link.massHardware.toFixed(3),
+                "Inertia (kg.m^2)": totalInertia.toFixed(4),
+                "Base Static (Nm)": baseStatic.toFixed(3),
+                "Final Static w/ SOF (Nm)": finalStatic.toFixed(3),
+                "Final Static w/ SOF (kgf.cm)": (finalStatic * NM_TO_KGFCM).toFixed(3),
+                "Base Dynamic (Nm)": baseDynamic.toFixed(3),
+                "Final Dynamic w/ SOF (Nm)": finalDynamic.toFixed(3),
+                "Final Dynamic w/ SOF (kgf.cm)": (finalDynamic * NM_TO_KGFCM).toFixed(3),
+                "Max Torque - Lifting (Nm)": maxTorque.toFixed(3),
+                "Max Torque - Lifting (kgf.cm)": (maxTorque * NM_TO_KGFCM).toFixed(3),
+                "Min Torque - Lowering (Nm)": minTorque.toFixed(3),
+                "Min Torque - Lowering (kgf.cm)": (minTorque * NM_TO_KGFCM).toFixed(3)
+            });
+
+            accMass += mLink + link.massHardware;
+            currentStaticTorque = baseStatic;
+            currentInertia = totalInertia;
+        }
+
+        let tbody = document.getElementById('results-body');
+        tbody.innerHTML = "";
+        results.forEach(r => {
+            tbody.innerHTML += `
+                <tr class="hover:bg-gray-50 border-b">
+                    <td class="p-3 font-bold text-gray-800 text-lg">${r.name}</td>
+                    <td class="p-3">${formatUnit(r.finalStatic)}</td>
+                    <td class="p-3">${formatUnit(r.finalDynamic)}</td>
+                    <td class="p-3 bg-red-50">${formatUnit(r.max)}</td>
+                    <td class="p-3 bg-green-50">${formatUnit(r.min)}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('step-by-step-output').innerHTML = stepsHTML;
+    }
+
+    function exportCSV() {
+        if (globalExportData.length === 0) {
+            alert("Please run the calculation first!");
+            return;
+        }
+        const headers = Object.keys(globalExportData[0]);
+        const csvRows = [];
+        csvRows.push(headers.join(','));
+        for (const row of globalExportData) {
+            const values = headers.map(header => row[header]);
+            csvRows.push(values.join(','));
+        }
+        const csvString = csvRows.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.setAttribute('hidden', '');
+        a.setAttribute('href', url);
+        a.setAttribute('download', '3dof_torque_analysis.csv');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+</body>
+</html>
