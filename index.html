@@ -36,27 +36,27 @@
                 <div class="grid grid-cols-2 gap-5">
                     <div class="input-group">
                         <label>Material Density (kg/m³)</label>
-                        <input type="number" id="density" value="8000" step="any">
+                        <input type="number" id="density" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Angular Accel (rad/s²)</label>
-                        <input type="number" id="alpha" value="6.48" step="any">
+                        <input type="number" id="alpha" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Max Payload (kg)</label>
-                        <input type="number" id="payload" value="5" step="any">
+                        <input type="number" id="payload" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Gripper Weight (kg)</label>
-                        <input type="number" id="gripper" value="2" step="any">
+                        <input type="number" id="gripper" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Safety Margin (kg)</label>
-                        <input type="number" id="payload_sof" value="1" step="any">
+                        <input type="number" id="payload_sof" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Safety Factor</label>
-                        <input type="number" id="sof" value="2" step="any">
+                        <input type="number" id="sof" value="0" step="any">
                     </div>
                 </div>
             </div>
@@ -109,19 +109,19 @@
         "Wrist (Joint 3 / Link 3)"
     ];
 
-    // Generate Input Fields for 3 Links
+    // Generate Input Fields for 3 Links with 0 as default
     const container = document.getElementById('joint-inputs-container');
     for (let i = 0; i < 3; i++) {
         container.innerHTML += `
             <div class="card border-t-4 border-gray-400">
                 <h3 class="font-bold text-lg mb-3 text-gray-800">${jointNames[i]}</h3>
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="input-group"><label>Link Length (m)</label><input type="number" id="l${i}" value="0.2" step="any"></div>
-                    <div class="input-group"><label>Outer Dia (mm)</label><input type="number" id="od${i}" value="30" step="any"></div>
-                    <div class="input-group"><label>Inner Dia (mm)</label><input type="number" id="id${i}" value="22" step="any"></div>
-                    <div class="input-group"><label>Mech Components (kg)</label><input type="number" id="mech${i}" value="1.5" step="any"></div>
-                    <div class="input-group"><label>Motor Weight (kg)</label><input type="number" id="motor${i}" value="2.5" step="any"></div>
-                    <div class="input-group"><label>Gearbox Weight (kg)</label><input type="number" id="gear${i}" value="3.2" step="any"></div>
+                    <div class="input-group"><label>Link Length (m)</label><input type="number" id="l${i}" value="0" step="any"></div>
+                    <div class="input-group"><label>Outer Dia (mm)</label><input type="number" id="od${i}" value="0" step="any"></div>
+                    <div class="input-group"><label>Inner Dia (mm)</label><input type="number" id="id${i}" value="0" step="any"></div>
+                    <div class="input-group"><label>Mech Components (kg)</label><input type="number" id="mech${i}" value="0" step="any"></div>
+                    <div class="input-group"><label>Motor Weight (kg)</label><input type="number" id="motor${i}" value="0" step="any"></div>
+                    <div class="input-group"><label>Gearbox Weight (kg)</label><input type="number" id="gear${i}" value="0" step="any"></div>
                 </div>
             </div>
         `;
@@ -144,6 +144,12 @@
         const gripper = parseFloat(document.getElementById('gripper').value);
         const payloadSof = parseFloat(document.getElementById('payload_sof').value);
         const sof = parseFloat(document.getElementById('sof').value);
+        
+        // Safety check to ensure fields are filled and not NaN
+        if (isNaN(density) || isNaN(alpha) || isNaN(payload) || isNaN(gripper) || isNaN(payloadSof) || isNaN(sof)) {
+            alert("Please fill in all Global Parameter fields before calculating.");
+            return;
+        }
         
         const totalPayload = payload + gripper + payloadSof;
         
@@ -168,8 +174,13 @@
             let massMotor = parseFloat(document.getElementById(`motor${i}`).value);
             let massGear = parseFloat(document.getElementById(`gear${i}`).value);
             let massMech = parseFloat(document.getElementById(`mech${i}`).value);
+            
+            if (isNaN(L) || isNaN(OD) || isNaN(ID) || isNaN(massMotor) || isNaN(massGear) || isNaN(massMech)) {
+                alert("Please fill in all fields for " + jointNames[i] + " before calculating.");
+                return;
+            }
+            
             let massHardware = massMotor + massGear + massMech;
-
             links.push({ name: jointNames[i], L: L, OD: OD, ID: ID, massHardware: massHardware });
         }
 
