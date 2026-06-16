@@ -23,16 +23,25 @@ This calculator uses an **O(N) Reverse Accumulation Algorithm** starting at the 
 
 ---
 
+## ⚙️ New: Dual-Mode Architecture
+
+Not all robots are built the same. Version 2.0 introduces a **Mode Selector** to handle different manufacturing techniques:
+
+* **Hollow Cylinder Mode:** Perfect for arms built using standard aluminum tubing or carbon fiber pipes. The math engine automatically calculates volume and mass based on your outer diameter (OD), inner diameter (ID), and material density.
+* **Custom Shape Mode:** Essential if you are using complex geometries like topology-optimized 3D-printed links, custom Lost Foam Cast aluminum chassis, or irregular structural brackets. Just select this mode, bypass the dimensional math, and directly input the total mass of your custom link.
+
+---
+
 ## 🛠️ How to Use This with Your CAD Design
 
 You don't need to be a physics professor to use this. Just bridge the gap between your CAD software (SolidWorks, Fusion 360, etc.) and your motor supplier!
 
-1. **Design your Arm:** Model your hollow tube links, brackets, and flanges in your CAD software.
-2. **Extract the Specs:** Pull the dimensions from your design:
+1. **Select Your Mode:** Choose either *Hollow Cylinder* or *Custom Shape* at the top of the dashboard. The UI will dynamically adjust to show only the inputs you need.
+2. **Extract the Specs:** Pull the dimensions or mass properties from your design:
    * Link lengths (from joint center to joint center).
-   * Outer and Inner Diameters of the tubes.
+   * OD/ID and Density (if using standard tubes) **OR** Total Link Mass (if using custom geometries).
    * Estimated weights of the mechanical hardware (flanges, bearings, bolts).
-3. **Pick a "Trial" Motor:** Look at a motor and gearbox catalog (e.g., StepperOnline) and note their physical weights.
+3. **Pick a "Trial" Motor:** Look at a motor and gearbox catalog and note their physical weights.
 4. **Plug it In:** Enter these numbers into the calculator, along with your target Angular Acceleration.
 5. **Analyze & Buy:** The dashboard will immediately output the **Max Required Torque**. If your trial motor/gearbox combination can output that much torque (in Nm or kgf·cm), you are ready to buy! If not, pick a larger gearbox and run the numbers again.
 
@@ -40,11 +49,12 @@ You don't need to be a physics professor to use this. Just bridge the gap betwee
 
 ## ✨ Key Features
 
+* **Dynamic UI Engine:** The interface intelligently hides or reveals fields (like Gearbox Weight and Safety Margins) based on your selected link type to keep the workspace clean and relevant.
 * **Real-Time Physics:** Instantly calculates Mass, Volume, Rotational Inertia ($I$), and Dynamic Lever Arms.
 * **Granular Hardware Profiling:** Separates the weight of the raw links from the heavy point-masses of motors and gearboxes.
 * **Safety Factor Multipliers:** Industrially standard inputs to guarantee your motors have sufficient overhead.
 * **Zero Dependencies:** Written in vanilla JavaScript with Tailwind CSS. No Node modules, no build steps, no lag.
-* **Excel Export:** One-click CSV generation to save your design iterations and share them with your engineering team.
+* **Context-Aware Excel Export:** One-click CSV generation that automatically adapts its columns based on whether you used Hollow or Custom geometries, allowing you to save design iterations and share them with your engineering team.
 
 ---
 
@@ -52,13 +62,11 @@ You don't need to be a physics professor to use this. Just bridge the gap betwee
 
 Want to run this offline or tweak the code yourself? It couldn't be easier. Because it is a single-file application, you do not need to install any heavy web frameworks.
 
-
 ### Option 1: Direct Download (Easiest)
 1. Go to the top of this GitHub repository.
 2. Click the green **Code** button and select **Download ZIP**.
 3. Extract the downloaded ZIP file to your desktop.
-4. Double-click the `calculator.html` file to open it directly in Chrome, Edge, Firefox, or Safari.
-
+4. Double-click the `index.html` file to open it directly in Chrome, Edge, Firefox, or Safari.
 
 ### Option 2: Git Clone (Recommended)
 Open your terminal or command prompt and run:
@@ -72,8 +80,8 @@ cd robotics-torque-calculator
 
 # 3. Open the file in your default web browser
 # On Windows:
-start calculator.html
+start index.html
 # On macOS:
-open calculator.html
+open index.html
 # On Linux (Ubuntu):
-xdg-open calculator.html
+xdg-open index.html
