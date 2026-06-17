@@ -55,20 +55,12 @@
                         <input type="number" id="density" value="0" step="any">
                     </div>
                     <div class="input-group">
-                        <label>Angular Accel (rad/s²)</label>
-                        <input type="number" id="alpha" value="0" step="any">
-                    </div>
-                    <div class="input-group">
                         <label>Max Payload (kg)</label>
                         <input type="number" id="payload" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Gripper Weight (kg)</label>
                         <input type="number" id="gripper" value="0" step="any">
-                    </div>
-                    <div class="input-group hollow-only">
-                        <label>Safety Margin (kg)</label>
-                        <input type="number" id="payload_sof" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Safety Factor (SOF)</label>
@@ -152,16 +144,16 @@
                     </div>
 
                     <div class="input-group">
+                        <label>Angular Accel (rad/s²)</label>
+                        <input type="number" id="alpha${i}" value="0" step="any">
+                    </div>
+                    <div class="input-group">
                         <label>Mech Components (kg)</label>
                         <input type="number" id="mech${i}" value="0" step="any">
                     </div>
                     <div class="input-group">
                         <label>Motor Weight (kg)</label>
                         <input type="number" id="motor${i}" value="0" step="any">
-                    </div>
-                    <div class="input-group hollow-only">
-                        <label>Gearbox Weight (kg)</label>
-                        <input type="number" id="gear${i}" value="0" step="any">
                     </div>
                 </div>
             </div>
@@ -211,16 +203,12 @@
 
         // Global Inputs
         const density = parseFloat(document.getElementById('density').value);
-        const alpha = parseFloat(document.getElementById('alpha').value);
         const payload = parseFloat(document.getElementById('payload').value);
         const gripper = parseFloat(document.getElementById('gripper').value);
         const sof = parseFloat(document.getElementById('sof').value);
         
-        // Safety Margin is 0 if Custom Mode is selected
-        const payloadSof = isCustom ? 0 : parseFloat(document.getElementById('payload_sof').value);
-        
         // Check standard global fields
-        if (isNaN(alpha) || isNaN(payload) || isNaN(gripper) || (!isCustom && isNaN(payloadSof)) || isNaN(sof)) {
+        if (isNaN(payload) || isNaN(gripper) || isNaN(sof)) {
             alert("Please fill in all required Global Parameter fields before calculating.");
             return;
         }
@@ -229,21 +217,17 @@
             return;
         }
         
-        const totalPayload = payload + gripper + payloadSof;
+        const totalPayload = payload + gripper;
         const blockClass = isCustom ? "math-block custom" : "math-block";
         const formClass = isCustom ? "formula custom" : "formula";
         
         let payloadString = `${payload} kg (Payload) + ${gripper} kg (Gripper)`;
-        if (!isCustom) {
-            payloadString += ` + ${payloadSof} kg (Margin)`;
-        }
 
         stepsHTML += `
             <div class="${blockClass} mb-6 bg-gray-50 border-gray-400">
                 <h3 class="font-bold text-lg mb-2">1. System Initialization (${isCustom ? 'Custom Shape' : 'Hollow Cylinder'})</h3>
                 <ul class="list-disc pl-5 space-y-1 text-gray-700">
                     ${!isCustom ? `<li><b>Material Density:</b> ${density} kg/m³</li>` : ''}
-                    <li><b>Angular Accel (α):</b> ${alpha} rad/s²</li>
                     <li><b>Total End-Effector Payload:</b> ${payloadString} = <b>${totalPayload} kg</b></li>
                     <li><b>Torque Safety Factor (SOF):</b> ${sof}x</li>
                 </ul>
@@ -253,38 +237,36 @@
         let links = [];
         for (let i = 0; i < 3; i++) {
             let L = parseFloat(document.getElementById(`l${i}`).value);
+            let alpha = parseFloat(document.getElementById(`alpha${i}`).value);
             let massMotor = parseFloat(document.getElementById(`motor${i}`).value);
             let massMech = parseFloat(document.getElementById(`mech${i}`).value);
-            
-            // Gearbox weight is 0 if Custom Mode is selected
-            let massGear = isCustom ? 0 : parseFloat(document.getElementById(`gear${i}`).value);
             
             let OD = 0, ID = 0, customMass = 0;
 
             if (isCustom) {
                 customMass = parseFloat(document.getElementById(`mass${i}`).value);
-                if (isNaN(L) || isNaN(customMass) || isNaN(massMotor) || isNaN(massMech)) {
+                if (isNaN(L) || isNaN(alpha) || isNaN(customMass) || isNaN(massMotor) || isNaN(massMech)) {
                     alert("Please fill in all visible fields for " + jointNames[i] + ".");
                     return;
                 }
             } else {
                 OD = parseFloat(document.getElementById(`od${i}`).value) / 1000; 
                 ID = parseFloat(document.getElementById(`id${i}`).value) / 1000; 
-                if (isNaN(L) || isNaN(OD) || isNaN(ID) || isNaN(massMotor) || isNaN(massGear) || isNaN(massMech)) {
+                if (isNaN(L) || isNaN(alpha) || isNaN(OD) || isNaN(ID) || isNaN(massMotor) || isNaN(massMech)) {
                     alert("Please fill in all visible fields for " + jointNames[i] + ".");
                     return;
                 }
             }
             
-            let massHardware = massMotor + massGear + massMech;
+            let massHardware = massMotor + massMech;
             links.push({ 
                 name: jointNames[i], 
                 L: L, 
+                alpha: alpha,
                 OD: OD, 
                 ID: ID, 
                 customMass: customMass, 
-                massHardware: massHardware,
-                massGear: massGear
+                massHardware: massHardware
             });
         }
 
@@ -297,6 +279,7 @@
         for (let i = 2; i >= 0; i--) {
             let link = links[i];
             let L = link.L;
+            let alpha = link.alpha;
             
             stepsHTML += `<div class="${blockClass}">`;
             stepsHTML += `<h3 class="font-bold text-xl mb-4 ${isCustom ? 'text-purple-800' : 'text-blue-800'}">${link.name}</h3>`;
@@ -333,7 +316,7 @@
                     <p class="calc-result">M_link = ${mLink.toFixed(2)} kg</p>
                     
                     <ul class="list-disc pl-5 mt-3 text-sm text-gray-600">
-                        <li>Hardware Mass at Joint (Motors/Gears/Mech): ${link.massHardware.toFixed(2)} kg</li>
+                        <li>Hardware Mass at Joint (Motors/Mech): ${link.massHardware.toFixed(2)} kg</li>
                         <li>Distal Mass Carried: ${accMass.toFixed(2)} kg</li>
                     </ul>
                 </div>`;
@@ -417,6 +400,7 @@
                 "Mode": isCustom ? "Custom Shape" : "Hollow Cylinder",
                 "Joint Name": link.name,
                 "Link Length (m)": L,
+                "Angular Accel (rad/s^2)": alpha
             };
 
             if (!isCustom) {
@@ -425,9 +409,6 @@
 
             rowData["Link Mass (kg)"] = mLink.toFixed(3);
             rowData["Hardware Mass (kg)"] = link.massHardware.toFixed(3);
-            if (!isCustom) {
-                rowData["Gearbox Mass included (kg)"] = link.massGear.toFixed(3);
-            }
             rowData["Inertia (kg.m^2)"] = totalInertia.toFixed(4);
             rowData["Final Static w/ SOF (Nm)"] = finalStatic.toFixed(3);
             rowData["Final Static (kgf.cm)"] = (finalStatic * NM_TO_KGFCM).toFixed(3);
